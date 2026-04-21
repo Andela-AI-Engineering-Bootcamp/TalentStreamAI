@@ -1,21 +1,14 @@
-FROM node:20-alpine AS deps
+FROM node:20-alpine
+
 WORKDIR /app
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-ARG NEXT_PUBLIC_API_URL=
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+EXPOSE 3000
 
-RUN npm run build
-
-FROM nginx:1.27-alpine AS runner
-COPY --from=builder /app/out /usr/share/nginx/html
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+# Bind all interfaces so host port mapping works; avoid `npm run dev` here because
+# package.json uses dotenv with `../.env`, which does not exist at `/` inside this image.
+CMD ["npx", "next", "dev", "-H", "0.0.0.0", "-p", "3000"]

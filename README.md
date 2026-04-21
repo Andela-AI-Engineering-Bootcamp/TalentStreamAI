@@ -61,13 +61,13 @@ Both FastAPI (`pydantic-settings`) and Next.js (via `dotenv-cli` in `frontend/pa
 
 ```bash
 chmod +x scripts/*.sh   # first clone only
-cp .env.example .env      # compose interpolation + container env (optional)
+cp .env.example .env      # optional; run.sh exports it for Compose variable substitution
 ./scripts/run.sh
 ```
 
 - API on `http://localhost:8000`
-- UI on `http://localhost:3000`
-- Compose runs Uvicorn with `--reload` and bind-mounts `./backend/app` read-only for quick API edits.
+- UI on `http://localhost:3000` (**`next dev`** inside Compose — hot reload, not a production `next build`)
+- **Why the first run can feel slow:** `./scripts/run.sh` runs `docker compose up --build`. The backend image pulls base layers and runs `uv sync` once; the frontend image runs **`npm ci`** during **`docker compose build`**. After that, Compose just starts the container; the UI is **`next dev`** from `frontend/Dockerfile`. To pick up new frontend dependencies after you edit **`package-lock.json`**, run `docker compose build frontend` (or `docker compose up --build`) again.
 
 Stop everything with `./scripts/stop.sh`.
 
@@ -125,7 +125,7 @@ TalentStreamAI/
 │   │   ├── app/                     # Routes, layouts, pages
 │   │   └── lib/                     # Shared helpers (e.g. API URL builder)
 │   ├── public/                      # Static assets for export
-│   ├── Dockerfile                   # Multi-stage: Node build → nginx serves out/
+│   ├── Dockerfile                   # Local `next dev` in Docker (used by Compose)
 │   ├── next.config.ts
 │   └── package.json
 ├── terraform/                       # AWS scaffold (no resources yet)
@@ -144,7 +144,7 @@ TalentStreamAI/
 │   ├── workflows/                   # CI + deploy placeholder workflows
 │   └── aws/
 │       └── github-oidc-trust-policy.json.example
-├── docker-compose.yml               # Local API (:8000) + static UI (:3000 → nginx :80)
+├── docker-compose.yml               # Local API (:8000) + Next dev server (:3000)
 ├── .env.example                     # Shared env template (copy to repo-root .env)
 ├── .gitignore
 └── README.md
@@ -181,6 +181,7 @@ Add pytest, Ruff, or mypy when the API surface grows; the scaffold stays intenti
 
 - **UI shows “Backend not responding.”** Confirm Uvicorn is listening on `8000`, `CORS_ORIGINS` includes your UI origin, and `NEXT_PUBLIC_API_URL` matches how your browser reaches the API.
 - **`docker compose` cannot reach Docker.** Start Docker Desktop (macOS/Windows) or the Linux daemon, then rerun `./scripts/run.sh`.
+- **`http://localhost:3000` does nothing.** Confirm the frontend container is up (`docker compose ps`) and check `docker compose logs frontend`. If **`docker compose build frontend`** fails or the container exits with **137**, raise **Memory** in Docker Desktop (Settings → Resources), then rebuild. After **`package-lock.json`** changes, run `docker compose build frontend` (or `./scripts/run.sh` with `--build`) again.
 - **Terraform init asks for backend settings.** Create `terraform/backend.hcl` or export `TALENTSTREAM_USE_LOCAL_TF_STATE=1` for disposable local state.
 - **GitHub Actions.** The bundled workflows are placeholders only; there is nothing to “fix” for credentials until you replace them with real jobs.
 
