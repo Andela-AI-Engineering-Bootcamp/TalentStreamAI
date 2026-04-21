@@ -1,0 +1,13 @@
+[project]
+name = "talentstreamai-api"
+version = "0.1.0"
+description = "TalentStreamAI FastAPI service"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.115.12",
+  "uvicorn[standard]==0.34.0",
+  "pydantic-settings==2.8.1",
+]
+
+[tool.uv]
+package = false

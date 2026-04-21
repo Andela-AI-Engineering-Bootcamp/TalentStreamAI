@@ -1,0 +1,8 @@
+# Copy to "backend.hcl" (gitignored) for remote Terraform state.
+# GitHub Actions generates this file during deploys.
+
+bucket         = "your-terraform-state-bucket"
+key            = "talentstreamai/dev/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "terraform-locks"
+encrypt        = true
