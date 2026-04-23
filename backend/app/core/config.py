@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     api_port: int = 8000
     cors_origins: str = "http://localhost:3000"
     deployment_environment: str | None = None
+    openai_api_key: str | None = None
 
     auth_mode: str = "clerk_jwks"
     clerk_jwks_url: str | None = None
@@ -55,7 +56,9 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        return [
+            origin.strip() for origin in self.cors_origins.split(",") if origin.strip()
+        ]
 
     @field_validator("auth_mode", "agent_mode", "upload_storage", mode="before")
     @classmethod
