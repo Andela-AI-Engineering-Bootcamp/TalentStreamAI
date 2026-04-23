@@ -90,6 +90,8 @@ class Settings(BaseSettings):
         default=True,
         validation_alias=AliasChoices("LANGFUSE_TRACING_ENABLED", "langfuse_tracing_enabled"),
     )
+    # Comma-separated ARNs for Lambda / runtime secret loading (optional locally).
+    app_secrets_arns: str = ""
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -130,6 +132,10 @@ class Settings(BaseSettings):
         if normalized.lower() == "aws:kms":
             return "aws:kms"
         return normalized
+
+    @property
+    def app_secrets_arn_list(self) -> list[str]:
+        return [arn.strip() for arn in self.app_secrets_arns.split(",") if arn.strip()]
 
 
 settings = Settings()
