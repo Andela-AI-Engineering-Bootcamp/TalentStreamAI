@@ -63,7 +63,7 @@ export default function ApplyPage() {
           Tailor a new application
         </h1>
         <p className="mt-1 text-muted-foreground">
-          Pick a base resume and paste the job — we'll generate a tailored
+          Pick a base resume and paste the job — we&apos;ll generate a tailored
           resume, cover letter, and match score.
         </p>
       </div>
@@ -146,7 +146,7 @@ export default function ApplyPage() {
                   placeholder="https://..."
                 />
                 <p className="text-xs text-muted-foreground">
-                  We'll fetch and parse the posting automatically.
+                  We&apos;ll fetch and parse the posting automatically.
                 </p>
               </TabsContent>
             </Tabs>

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton } from "@clerk/react";
 import { ArrowRight, Loader2, Upload } from "lucide-react";
 import Link from "next/link";
 
@@ -40,7 +40,7 @@ export default function OnboardingPage() {
           <Link href="/" className="text-lg font-semibold tracking-tight">
             TalentStream<span className="text-primary">AI</span>
           </Link>
-          <UserButton afterSignOutUrl="/" />
+          <UserButton />
         </div>
       </header>
 
@@ -51,7 +51,7 @@ export default function OnboardingPage() {
             Upload your base resume
           </h1>
           <p className="text-muted-foreground">
-            We'll use this as the foundation for every tailored application.
+            We&apos;ll use this as the foundation for every tailored application.
             You can always update it later.
           </p>
         </div>
