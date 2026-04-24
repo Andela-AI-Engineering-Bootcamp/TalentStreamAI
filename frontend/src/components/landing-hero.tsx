@@ -35,7 +35,7 @@ function ScorePreview() {
         </div>
       </div>
       <p className="mt-3 text-center text-xs text-muted-foreground">
-        See exactly what's holding your resume back and fix it in seconds.
+        See exactly what&apos;s holding your resume back and fix it in seconds.
       </p>
     </div>
   );

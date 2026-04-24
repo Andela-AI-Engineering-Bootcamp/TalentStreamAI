@@ -19,7 +19,7 @@ export default function ApplicationsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Applications</h1>
           <p className="mt-1 text-muted-foreground">
-            Track every job you've tailored an application for.
+            Track every job you&apos;ve tailored an application for.
           </p>
         </div>
         <Button asChild>

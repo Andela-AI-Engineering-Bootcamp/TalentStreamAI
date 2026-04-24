@@ -51,7 +51,7 @@ export default function OnboardingPage() {
             Upload your base resume
           </h1>
           <p className="text-muted-foreground">
-            We'll use this as the foundation for every tailored application.
+            We&apos;ll use this as the foundation for every tailored application.
             You can always update it later.
           </p>
         </div>

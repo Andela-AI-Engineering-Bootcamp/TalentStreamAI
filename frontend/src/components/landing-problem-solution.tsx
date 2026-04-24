@@ -24,7 +24,7 @@ export default function LandingProblemSolution() {
           {/* Problem */}
           <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-8">
             <h2 className="text-2xl font-bold tracking-tight">
-              Why You're Not Getting Interviews
+              Why You&apos;re Not Getting Interviews
             </h2>
             <ul className="mt-6 space-y-3">
               {PROBLEMS.map((p) => (
@@ -35,7 +35,7 @@ export default function LandingProblemSolution() {
               ))}
             </ul>
             <p className="mt-6 text-sm italic text-muted-foreground">
-              That's why you can apply to dozens of jobs and hear nothing back.
+              That&apos;s why you can apply to dozens of jobs and hear nothing back.
             </p>
           </div>
 

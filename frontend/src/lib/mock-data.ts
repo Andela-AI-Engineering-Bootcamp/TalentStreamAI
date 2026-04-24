@@ -140,7 +140,7 @@ export const mockApi = {
   async getResume(id: string): Promise<Resume | undefined> {
     return delay(resumes.find((r) => r.id === id));
   },
-  async tailor(req: TailorRequest): Promise<TailorResponse> {
+  async tailor(_req: TailorRequest): Promise<TailorResponse> {
     const id = `a-${Date.now()}`;
     const resumeId = `r-${Date.now()}`;
 
