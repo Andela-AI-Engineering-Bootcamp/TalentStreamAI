@@ -15,9 +15,10 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    api_host: str = "0.0.0.0"
-    api_port: int = 8000
-    cors_origins: str = "http://localhost:3000"
+    # Loaded from API_HOST, API_PORT, CORS_ORIGINS (see repository root .env / .env.example)
+    api_host: str
+    api_port: int
+    cors_origins: str
     deployment_environment: str | None = None
     # Chat completions: OPENROUTER_API_KEY when using OpenRouter; else OPENAI_API_KEY alone.
     openrouter_api_key: str | None = Field(
