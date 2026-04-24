@@ -34,6 +34,8 @@ yarn-error.log*
 # Terraform
 .terraform/
 terraform/terraform.tfvars
+terraform/bootstrap/terraform.tfvars
+terraform.tfstate.d/
 terraform/backend.hcl
 *.tfstate
 *.tfstate.*
