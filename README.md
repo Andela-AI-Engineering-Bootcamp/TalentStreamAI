@@ -5,11 +5,56 @@ Squad Five capstone for the Andela AI Engineering Bootcamp. The goal is straight
 Product direction (for context while you build):
 
 - Ingest a resume plus a job posting URL.
-- Diff the candidate’s story against the role (ATS-oriented gap analysis).
-- Generate refreshed resume copy, a cover letter with narrative structure, and a Gmail-ready draft.
+ - Diff the candidate's story against the role (ATS-oriented gap analysis).
+ - Generate refreshed resume copy, a cover letter with narrative structure, and a Gmail-ready draft.
 
-Implementation details for LangGraph, Gmail, and persistence are intentionally left open so feature teams can own them.
+## Implementation Status
 
+The backend is now fully implemented with a LangGraph-based workflow for generating job application materials.
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+| --- | --- | --- |
+| `/api/v1/apply` | POST | Run the complete TalentStreamAI workflow |
+| `/api/v1/fetch-job` | POST | Fetch and parse a job description from URL |
+| `/api/v1/parse-resume` | POST | Parse a resume file (PDF or DOCX) |
+| `/api/v1/score-ats` | POST | Score resume against job description for ATS compatibility |
+
+#### Apply Endpoint (Main)
+
+The main `/api/v1/apply` endpoint accepts:
+- `job_url` (str): URL of the job posting
+- `resume` (UploadFile): Resume file (PDF or DOCX)
+
+Returns job data, resume data, ATS score, gap analysis, tailored resume, cover letter, and email draft.
+
+### LangGraph Workflow
+
+The workflow consists of these nodes executed in sequence:
+
+1. **fetch_job**: Fetches job description from URL using web scraping
+2. **parse_resume**: Parses PDF/DOCX resume into structured data
+3. **score_ats**: Scores resume against job requirements
+4. **analyze_gaps**: Identifies keyword and skill gaps
+5. **generate_resume**: Generates ATS-optimized tailored resume (LLM)
+6. **generate_cover_letter**: Generates narrative cover letter (LLM)
+7. **generate_email**: Generates Gmail-ready email draft (LLM)
+
+### Tools
+
+Located in `backend/app/tools/`:
+- **job_fetcher.py**: Fetches and parses job descriptions from URLs
+- **resume_parser.py**: Parses PDF and DOCX resumes
+- **ats_scorer.py**: Scores resumes against job requirements for ATS compatibility
+- **models.py**: Pydantic models for all tool inputs and outputs
+
+### Environment Variables
+
+Required in `.env`:
+| Key | Description |
+| --- | --- |
+| `OPENAI_API_KEY` | OpenAI API key for LLM calls (GPT-4o) |
 
 ## Prerequisites
 
@@ -56,6 +101,7 @@ Both FastAPI (`pydantic-settings`) and Next.js (via `dotenv-cli` in `frontend/pa
 | `CORS_ORIGINS` | API | Comma-separated browser origins allowed to call the API. |
 | `NEXT_PUBLIC_API_URL` | UI (build + browser) | Public API base URL the browser calls. Leave empty for production builds that should call same-origin `/api/*` through CloudFront. |
 | `DEPLOYMENT_ENVIRONMENT` | API (`/api/v1/health` metadata) | Optional label such as `local`, `dev`, `staging`, or `prod`. |
+| `OPENAI_API_KEY` | API | OpenAI API key for LLM calls (GPT-4o). Required for `/api/v1/apply` endpoint. |
 
 ## Run the full stack in Docker
 
