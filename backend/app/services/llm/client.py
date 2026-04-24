@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
+import structlog
 from tenacity import AsyncRetrying, retry_if_exception, stop_after_attempt, wait_exponential_jitter
 
 from app.core.config import settings
+from app.core import metrics
 from app.services.llm.json_parsing import parse_json_object
+from app.services.llm.safety import llm_output_safety_flags
 
 logger = logging.getLogger(__name__)
+slog = structlog.get_logger(__name__)
 
 _http_clients_by_loop: dict[asyncio.AbstractEventLoop, httpx.AsyncClient] = {}
 
@@ -85,6 +90,8 @@ class LlmClient:
                 return _is_retryable_http_status(exc)
             return False
 
+        t0 = time.perf_counter()
+        data: dict[str, Any] | None = None
         async for attempt in AsyncRetrying(
             reraise=True,
             stop=stop_after_attempt(3),
@@ -95,19 +102,52 @@ class LlmClient:
                 resp = await _http_client().post(url, headers=self._headers(), json=payload)
                 try:
                     resp.raise_for_status()
-                except httpx.HTTPStatusError as e:
+                except httpx.HTTPStatusError:
                     body = (resp.text or "")[:500]
                     logger.warning("LLM HTTP error %s: %s", resp.status_code, body)
+                    metrics.llm_calls.labels(self._model, "http_error").inc()
                     raise
                 data = resp.json()
+        if data is None:
+            raise LlmError("No response from LLM")
+
+        elapsed = time.perf_counter() - t0
+        metrics.llm_latency.labels(self._model).observe(elapsed)
+        metrics.llm_calls.labels(self._model, "success").inc()
+
+        usage = data.get("usage") or {}
+        pt = int(usage.get("prompt_tokens") or 0)
+        ct = int(usage.get("completion_tokens") or 0)
+        if pt:
+            metrics.llm_tokens.labels(self._model, "prompt").inc(pt)
+        if ct:
+            metrics.llm_tokens.labels(self._model, "completion").inc(ct)
+        if pt or ct:
+            slog.info(
+                "llm_token_usage",
+                model=self._model,
+                prompt_tokens=pt,
+                completion_tokens=ct,
+                duration_ms=round(elapsed * 1000, 2),
+            )
 
         try:
             text = data["choices"][0]["message"]["content"]
-        except Exception as e:
+        except (KeyError, IndexError) as e:
+            metrics.llm_calls.labels(self._model, "malformed").inc()
             raise LlmError("Malformed LLM response") from e
+
+        flags = llm_output_safety_flags(text)
+        if flags:
+            slog.warning(
+                "llm_output_safety_flags",
+                model=self._model,
+                flags=flags,
+            )
 
         try:
             return parse_json_object(text)
         except Exception as e:
+            metrics.llm_calls.labels(self._model, "json_parse").inc()
             logger.warning("Failed to parse JSON from LLM output", exc_info=e)
             raise LlmError("LLM did not return valid JSON") from e

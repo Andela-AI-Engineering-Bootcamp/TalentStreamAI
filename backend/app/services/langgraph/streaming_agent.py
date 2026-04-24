@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import time
 from collections import Counter
 from functools import lru_cache
-from typing import Any
+from typing import Any, cast
 
+import structlog
 from langgraph.graph import END, StateGraph
 from typing_extensions import TypedDict
 
@@ -219,6 +221,34 @@ async def stream_generation(*, resume_text: str, job_description_text: str):
 def _sse(event: str, data: dict) -> str:
     payload = json.dumps(data, ensure_ascii=True)
     return f"event: {event}\ndata: {payload}"
+
+
+_log = structlog.get_logger(__name__)
+
+
+async def run_tailor_pipeline(
+    *, resume_text: str, job_description_text: str
+) -> dict[str, Any]:
+    """
+    Non-streaming end-to-end: gap analysis, tailored resume, cover letter, email draft.
+    Reuses the same graph as :func:`stream_generation` for a single final state.
+    """
+    app = _graph()
+    state: AgentState = {
+        "resume_text": resume_text,
+        "job_description_text": job_description_text,
+    }
+    t0 = time.perf_counter()
+    try:
+        out = await app.ainvoke(state)
+    except Exception:
+        _log.exception("tailor_pipeline_ainvoke_failed")
+        raise
+    _log.info(
+        "tailor_pipeline_complete",
+        duration_ms=round((time.perf_counter() - t0) * 1000, 2),
+    )
+    return cast(dict[str, Any], out)
 
 
 def _cap(text: str) -> str:

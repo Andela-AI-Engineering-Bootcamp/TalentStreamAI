@@ -54,6 +54,15 @@ class Settings(BaseSettings):
     openrouter_referer: str | None = None
     openrouter_title: str | None = None
 
+    # --- Observability ---
+    log_level: str = "INFO"
+    log_json: bool = False
+    enable_prometheus: bool = True
+    request_id_header: str = "X-Request-Id"
+    # Set to enable OpenTelemetry gRPC/HTTP export (requires optional otel packages)
+    otel_exporter_otlp_endpoint: str | None = None
+    service_name: str = "talentstreamai-api"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [

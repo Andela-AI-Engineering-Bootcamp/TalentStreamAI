@@ -1,8 +1,7 @@
 """Complete LangGraph workflow for TalentStreamAI with document generation."""
 
 import os
-from typing import Any
-from typing import Optional
+from typing import Any, Optional
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
@@ -31,12 +30,45 @@ class TalentStreamState(BaseModel):
     error: Optional[str] = None
 
 
-def _get_llm():
-    """Get LLM client (uses OpenAI)."""
-    api_key = settings.openai_api_key or os.environ.get("OPENAI_API_KEY")
-    if api_key:
-        return ChatOpenAI(model="gpt-4o", api_key=api_key)
-    raise ValueError("No LLM API key configured (OPENAI_API_KEY)")
+def _langchain_openai_base_url() -> str:
+    """
+    `LLM_BASE_URL` matches `LlmClient` (no trailing /v1). ChatOpenAI expects the
+    full OpenAI-compatible root including /v1 (e.g. https://openrouter.ai/api/v1).
+    """
+    raw = (settings.llm_base_url or "https://api.openai.com").rstrip("/")
+    if raw.endswith("/v1"):
+        return raw
+    return f"{raw}/v1"
+
+
+def _get_llm() -> ChatOpenAI:
+    """OpenAI-compatible chat model (OpenAI, OpenRouter, or other /v1 hosts)."""
+    api_key = (
+        settings.llm_api_key
+        or settings.openai_api_key
+        or os.environ.get("OPENAI_API_KEY")
+    )
+    if not api_key:
+        raise ValueError(
+            "No LLM API key configured. Set LLM_API_KEY, OPENROUTER_API_KEY, or OPENAI_API_KEY.",
+        )
+
+    default_headers: dict[str, str] = {}
+    if settings.openrouter_referer:
+        default_headers["HTTP-Referer"] = settings.openrouter_referer
+    if settings.openrouter_title:
+        default_headers["X-Title"] = settings.openrouter_title
+
+    params: dict[str, Any] = {
+        "model": settings.llm_model,
+        "api_key": api_key,
+        "base_url": _langchain_openai_base_url(),
+        "temperature": settings.llm_temperature,
+        "max_tokens": settings.llm_max_tokens,
+    }
+    if default_headers:
+        params["default_headers"] = default_headers
+    return ChatOpenAI(**params)
 
 
 def _generate_tailored_resume(state: TalentStreamState) -> TalentStreamState:
