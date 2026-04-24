@@ -29,7 +29,7 @@ aws sts get-caller-identity
 
 You should also have:
 
-- An AWS account and region selected (`us-east-1` by default)
+- An AWS account and region selected (`eu-central-1` / Frankfurt by default)
 - A GitHub repository for this project
 - Clerk issuer/audience values ready for API Gateway JWT authorizer
 
@@ -65,7 +65,7 @@ python3 scripts/bootstrap_tf_state.py <state-bucket-name> <lock-table-name> <reg
 Example:
 
 ```bash
-python3 scripts/bootstrap_tf_state.py talentstreamai-tf-state terraform-locks us-east-1
+python3 scripts/bootstrap_tf_state.py talentstreamai-tf-state terraform-locks eu-central-1
 ```
 
 Then create `terraform/backend.hcl` (gitignored):
@@ -73,7 +73,7 @@ Then create `terraform/backend.hcl` (gitignored):
 ```hcl
 bucket         = "talentstreamai-tf-state"
 key            = "talentstreamai/dev/terraform.tfstate"
-region         = "us-east-1"
+region         = "eu-central-1"
 dynamodb_table = "terraform-locks"
 encrypt        = true
 ```
@@ -95,14 +95,13 @@ Edit required values in `terraform/terraform.tfvars`:
 - `frontend_bucket_name` (globally unique S3 bucket name)
 - `clerk_jwt_issuer`
 - `clerk_jwt_audiences`
-- `cors_origins` (set to your CloudFront/custom domain URL)
+- `cors_origins` (set to your CloudFront URL)
 - `state_bucket_arn`
 - `state_bucket_objects_arn`
 - `state_lock_table_arn`
 
 Optional but recommended:
 
-- `cloudfront_aliases`, `cloudfront_acm_certificate_arn`, `route53_zone_id` (custom domain)
 - `lambda_environment` map for non-secret runtime config
 - `lambda_secret_arns` if using pre-existing Secrets Manager secrets
 
@@ -188,7 +187,7 @@ Trigger: manual (`workflow_dispatch`) with:
 
 ### 7.1 Required GitHub variables
 
-Set these repository/environment variables:
+Set these repository/environment variables. Names must not start with `GITHUB_`; that prefix is reserved for GitHub Actions built-in variables and contexts.
 
 - `AWS_ROLE_ARN`
 - `AWS_REGION`
@@ -197,8 +196,8 @@ Set these repository/environment variables:
 - `TF_STATE_LOCK_TABLE`
 - `TF_STATE_KEY_PREFIX` (optional, defaults to `talentstreamai`)
 - `TF_PROJECT_NAME` (optional)
-- `GITHUB_ORG`
-- `GITHUB_REPO`
+- `REPOSITORY_OWNER` (GitHub org or user slug)
+- `REPOSITORY_NAME` (repository name only, without the owner prefix)
 - `FRONTEND_BUCKET_NAME`
 - `CLERK_JWT_ISSUER`
 - `CLERK_JWT_AUDIENCE`
@@ -206,8 +205,6 @@ Set these repository/environment variables:
 - `TF_CREATE_OIDC_PROVIDER` (optional)
 - `TF_EXISTING_OIDC_PROVIDER_ARN` (optional)
 - `TF_DEPLOY_ROLE_NAME` (optional)
-- `CLOUDFRONT_ACM_CERTIFICATE_ARN` (optional)
-- `ROUTE53_ZONE_ID` (optional)
 - `LAMBDA_FUNCTION_NAME` (optional)
 - `APP_CONFIG_SECRET_NAME` (optional)
 

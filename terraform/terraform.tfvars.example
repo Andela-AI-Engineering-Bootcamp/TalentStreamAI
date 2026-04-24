@@ -1,4 +1,4 @@
-aws_region   = "us-east-1"
+aws_region   = "eu-central-1"
 project_name = "talentstreamai"
 environment  = "dev"
 
@@ -9,6 +9,7 @@ frontend_bucket_name = "talentstreamai-dev-frontend-example"
 
 # Patterns map to token.actions.githubusercontent.com:sub
 # repo:<org>/<repo>:ref:refs/heads/main
+# Trust JSON is rendered from ../.github/aws/github-oidc-trust-policy.json.tftpl
 github_ref_patterns = ["ref:refs/heads/main"]
 
 # If your account already has the provider, set create_oidc_provider=false
@@ -17,11 +18,6 @@ create_oidc_provider      = true
 existing_oidc_provider_arn = ""
 
 deploy_role_name = "github-actions-talentstreamai-deploy"
-
-# CloudFront custom domain is optional.
-cloudfront_aliases             = []
-cloudfront_acm_certificate_arn = ""
-route53_zone_id                = ""
 
 lambda_function_name = "talentstreamai-api"
 lambda_handler       = "app.lambda_handler.handler"
@@ -50,4 +46,4 @@ api_stage_name = "$default"
 # Remote state resources used by deploy role permissions.
 state_bucket_arn         = "arn:aws:s3:::your-terraform-state-bucket"
 state_bucket_objects_arn = "arn:aws:s3:::your-terraform-state-bucket/*"
-state_lock_table_arn     = "arn:aws:dynamodb:us-east-1:123456789012:table/terraform-locks"
+state_lock_table_arn     = "arn:aws:dynamodb:eu-central-1:123456789012:table/terraform-locks"

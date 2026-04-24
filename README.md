@@ -129,7 +129,7 @@ The Terraform root now provisions:
 - Backend edge stack: API Gateway HTTP API with Clerk JWT authorizer, Lambda function + IAM role, CloudWatch logs.
 - CloudFront `/api/*` behavior forwarding to API Gateway while static files come from S3.
 
-`variables.tf` contains all deployment knobs (GitHub repo identity, state ARNs, Clerk issuer/audience, Lambda environment maps, optional secret ARNs, and custom domain settings).
+`variables.tf` contains all deployment knobs (GitHub repo identity, state ARNs, Clerk issuer/audience, Lambda environment maps, and optional secret ARNs).
 
 ### Remote state
 
@@ -149,7 +149,7 @@ cp terraform.tfvars.example terraform.tfvars
 From the repository root:
 
 ```bash
-python3 scripts/bootstrap_tf_state.py <bucket> <lock-table> us-east-1
+python3 scripts/bootstrap_tf_state.py <bucket> <lock-table> eu-central-1
 python3 scripts/setup_github_oidc.py --environment dev
 python3 scripts/terraform_provision.py --environment dev
 ```
@@ -222,6 +222,7 @@ TalentStreamAI/
 ├── .github/
 │   ├── workflows/                   # CI + deploy placeholder workflows
 │   └── aws/
+│       ├── github-oidc-trust-policy.json.tftpl
 │       └── github-oidc-trust-policy.json.example
 ├── docker-compose.yml               # Local API (:8000) + Next dev server (:3000)
 ├── .env.example                     # Shared env template (copy to repo-root .env)
@@ -243,7 +244,7 @@ TalentStreamAI/
 - generates backend.hcl and terraform.tfvars from repository/environment variables,
 - runs the same deploy scripts used locally.
 
-For OIDC trust policy shaping, see `.github/aws/github-oidc-trust-policy.json.example`.
+For OIDC trust policy shaping, Terraform renders `.github/aws/github-oidc-trust-policy.json.tftpl` using `github_org`, `github_repo`, and `github_ref_patterns` in `terraform.tfvars`. See `.github/aws/github-oidc-trust-policy.json.example` for a human-readable sample with placeholders.
 
 ### Required GitHub variables
 
@@ -254,12 +255,14 @@ At minimum, configure these repository or environment variables before running d
 - `AWS_ACCOUNT_ID`
 - `TF_STATE_BUCKET`
 - `TF_STATE_LOCK_TABLE`
-- `GITHUB_ORG`
-- `GITHUB_REPO`
+- `REPOSITORY_OWNER`
+- `REPOSITORY_NAME`
 - `FRONTEND_BUCKET_NAME`
 - `CLERK_JWT_ISSUER`
 - `CLERK_JWT_AUDIENCE`
 - `CORS_ORIGINS`
+
+Those two repository identifiers become Terraform `github_org` and `github_repo`. Custom GitHub variable names must not start with `GITHUB_`; that prefix is reserved for GitHub Actions built-in contexts.
 
 ## Where feature work should land
 

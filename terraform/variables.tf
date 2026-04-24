@@ -1,7 +1,7 @@
 variable "aws_region" {
   type        = string
   description = "Primary AWS region for future resources."
-  default     = "us-east-1"
+  default     = "eu-central-1"
 }
 
 variable "project_name" {
@@ -57,24 +57,6 @@ variable "deploy_role_name" {
 variable "frontend_bucket_name" {
   type        = string
   description = "S3 bucket name for frontend static assets."
-}
-
-variable "cloudfront_aliases" {
-  type        = list(string)
-  description = "Optional CNAME aliases for CloudFront distribution."
-  default     = []
-}
-
-variable "cloudfront_acm_certificate_arn" {
-  type        = string
-  description = "Optional ACM certificate ARN (must be in us-east-1) for CloudFront aliases."
-  default     = ""
-}
-
-variable "route53_zone_id" {
-  type        = string
-  description = "Optional hosted zone ID for Route53 alias records."
-  default     = ""
 }
 
 variable "lambda_function_name" {

@@ -13,7 +13,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("state_bucket_name")
     parser.add_argument("lock_table_name")
-    parser.add_argument("region", nargs="?", default="us-east-1")
+    parser.add_argument("region", nargs="?", default="eu-central-1")
     return parser.parse_args()
 
 

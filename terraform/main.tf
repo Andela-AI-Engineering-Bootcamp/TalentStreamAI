@@ -12,6 +12,10 @@ terraform {
       source  = "hashicorp/archive"
       version = "~> 2.5"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 
@@ -24,6 +28,9 @@ locals {
   ]
 
   oidc_provider_arn = var.create_oidc_provider ? aws_iam_openid_connect_provider.github[0].arn : var.existing_oidc_provider_arn
+
+  # Root module is terraform/; repository root is the parent directory (e.g. .github/aws templates).
+  repository_root = abspath("${path.root}/..")
 
   lambda_secret_arns = concat(
     var.lambda_secret_arns,
@@ -40,8 +47,6 @@ locals {
 
   api_origin_domain = replace(aws_apigatewayv2_api.http.api_endpoint, "https://", "")
 
-  cloudfront_use_aliases = length(var.cloudfront_aliases) > 0 && var.cloudfront_acm_certificate_arn != ""
-
   frontend_bucket_arn = "arn:${data.aws_partition.current.partition}:s3:::${var.frontend_bucket_name}"
   lambda_function_arn = "arn:${data.aws_partition.current.partition}:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${var.lambda_function_name}-${var.environment}"
 }
@@ -50,30 +55,8 @@ data "aws_partition" "current" {}
 
 data "aws_caller_identity" "current" {}
 
-data "aws_iam_policy_document" "github_oidc_trust" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "sts:AssumeRoleWithWebIdentity",
-    ]
-
-    principals {
-      type        = "Federated"
-      identifiers = [local.oidc_provider_arn]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:aud"
-      values   = ["sts.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringLike"
-      variable = "token.actions.githubusercontent.com:sub"
-      values   = local.github_sub_patterns
-    }
-  }
+data "tls_certificate" "github" {
+  url = "https://token.actions.githubusercontent.com"
 }
 
 resource "aws_iam_openid_connect_provider" "github" {
@@ -83,15 +66,17 @@ resource "aws_iam_openid_connect_provider" "github" {
 
   client_id_list = ["sts.amazonaws.com"]
 
-  thumbprint_list = [
-    "6938fd4d98bab03faadb97b34396831e3780aea1",
-  ]
+  thumbprint_list = [data.tls_certificate.github.certificates[0].sha1_fingerprint]
 }
 
 resource "aws_iam_role" "github_actions_deploy" {
-  name               = var.deploy_role_name
-  assume_role_policy = data.aws_iam_policy_document.github_oidc_trust.json
-  description        = "Assumed by GitHub Actions via OIDC for Terraform and deployment automation."
+  name        = var.deploy_role_name
+  description = "Assumed by GitHub Actions via OIDC for Terraform and deployment automation."
+
+  assume_role_policy = templatefile("${local.repository_root}/.github/aws/github-oidc-trust-policy.json.tftpl", {
+    provider_arn     = local.oidc_provider_arn
+    github_subs_json = jsonencode(local.github_sub_patterns)
+  })
 }
 
 data "aws_iam_policy_document" "github_actions_deploy" {
@@ -204,7 +189,6 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       "iam:UntagOpenIDConnectProvider",
       "lambda:*",
       "logs:*",
-      "route53:*",
       "s3:*",
       "secretsmanager:*",
     ]
@@ -289,8 +273,6 @@ resource "aws_cloudfront_distribution" "frontend" {
   is_ipv6_enabled = true
   comment         = "TalentStreamAI frontend and API edge routing."
 
-  aliases = local.cloudfront_use_aliases ? var.cloudfront_aliases : []
-
   default_root_object = "index.html"
 
   origin {
@@ -357,10 +339,8 @@ resource "aws_cloudfront_distribution" "frontend" {
   }
 
   viewer_certificate {
-    acm_certificate_arn      = local.cloudfront_use_aliases ? var.cloudfront_acm_certificate_arn : null
-    minimum_protocol_version = "TLSv1.2_2021"
-    ssl_support_method       = local.cloudfront_use_aliases ? "sni-only" : null
-    cloudfront_default_certificate = local.cloudfront_use_aliases ? false : true
+    cloudfront_default_certificate = true
+    minimum_protocol_version       = "TLSv1.2_2021"
   }
 }
 
@@ -389,34 +369,6 @@ data "aws_iam_policy_document" "frontend_bucket_policy" {
 resource "aws_s3_bucket_policy" "frontend" {
   bucket = aws_s3_bucket.frontend.id
   policy = data.aws_iam_policy_document.frontend_bucket_policy.json
-}
-
-resource "aws_route53_record" "cloudfront_alias_a" {
-  count = local.cloudfront_use_aliases && var.route53_zone_id != "" ? length(var.cloudfront_aliases) : 0
-
-  zone_id = var.route53_zone_id
-  name    = element(var.cloudfront_aliases, count.index)
-  type    = "A"
-
-  alias {
-    name                   = aws_cloudfront_distribution.frontend.domain_name
-    zone_id                = aws_cloudfront_distribution.frontend.hosted_zone_id
-    evaluate_target_health = false
-  }
-}
-
-resource "aws_route53_record" "cloudfront_alias_aaaa" {
-  count = local.cloudfront_use_aliases && var.route53_zone_id != "" ? length(var.cloudfront_aliases) : 0
-
-  zone_id = var.route53_zone_id
-  name    = element(var.cloudfront_aliases, count.index)
-  type    = "AAAA"
-
-  alias {
-    name                   = aws_cloudfront_distribution.frontend.domain_name
-    zone_id                = aws_cloudfront_distribution.frontend.hosted_zone_id
-    evaluate_target_health = false
-  }
 }
 
 resource "aws_apigatewayv2_api" "http" {
@@ -495,7 +447,7 @@ data "archive_file" "lambda_bootstrap" {
   output_path = "${path.module}/lambda-bootstrap.zip"
 
   source {
-    content = <<-PY
+    content  = <<-PY
       def handler(event, context):
           return {
               "statusCode": 200,
