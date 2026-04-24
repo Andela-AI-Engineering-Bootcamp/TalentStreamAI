@@ -15,7 +15,12 @@ def main() -> None:
     run(["npm", "ci"], cwd=frontend_dir)
 
     print("Building static frontend export...")
-    env = {"NEXT_PUBLIC_API_URL": os.environ.get("NEXT_PUBLIC_API_URL", "")}
+    env: dict[str, str] = {
+        "NEXT_PUBLIC_API_URL": os.environ.get("NEXT_PUBLIC_API_URL", ""),
+    }
+    clerk_key = os.environ.get("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY")
+    if clerk_key:
+        env["NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"] = clerk_key
     run(["npm", "run", "build"], cwd=frontend_dir, env=env)
 
     if not out_dir.exists():

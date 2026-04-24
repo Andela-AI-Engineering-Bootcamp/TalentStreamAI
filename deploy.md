@@ -199,6 +199,7 @@ Set these repository/environment variables. Names must not start with `GITHUB_`;
 - `REPOSITORY_OWNER` (GitHub org or user slug)
 - `REPOSITORY_NAME` (repository name only, without the owner prefix)
 - `FRONTEND_BUCKET_NAME`
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` — same value as repo-root `.env` / [.env.example](.env.example); required for static `next build` in CI and deploy workflows (Clerk publishable key, safe as an Actions variable).
 - `CLERK_JWT_ISSUER`
 - `CLERK_JWT_AUDIENCE`
 - `CORS_ORIGINS`
@@ -244,8 +245,9 @@ Secrets:
 
 Frontend is static export; env values are baked at build time.
 
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is required for `next build` (see [frontend/src/components/clerk-provider.tsx](frontend/src/components/clerk-provider.tsx)); set it in GitHub Actions variables for CI and deploy jobs that run the frontend build.
 - `NEXT_PUBLIC_API_URL` defaults to empty for same-origin `/api/*`
-- Set `NEXT_PUBLIC_*` values in CI environment if needed at build time
+- Set other `NEXT_PUBLIC_*` values in the CI environment if needed at build time
 
 ---
 

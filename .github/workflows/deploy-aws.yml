@@ -98,6 +98,7 @@ jobs:
         env:
           TF_ENVIRONMENT: ${{ inputs.environment }}
           NEXT_PUBLIC_API_URL: ""
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
         run: python3 scripts/deploy_frontend.py --environment "${TF_ENVIRONMENT}"
 
       - name: Deploy backend only
@@ -111,4 +112,5 @@ jobs:
         env:
           TF_ENVIRONMENT: ${{ inputs.environment }}
           NEXT_PUBLIC_API_URL: ""
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
         run: python3 scripts/deploy_all.py --environment "${TF_ENVIRONMENT}"

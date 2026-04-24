@@ -18,10 +18,19 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Require Clerk publishable key for frontend build
+        run: |
+          if [ -z "${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}" ]; then
+            echo "Set Actions variable NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY (Clerk publishable key, e.g. pk_test_...)."
+            echo "Repository Settings → Secrets and variables → Actions → Variables"
+            exit 1
+          fi
+
       - name: Lint and build frontend
         working-directory: frontend
         env:
           NEXT_PUBLIC_API_URL: ""
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
         run: |
           npm ci
           npm run lint

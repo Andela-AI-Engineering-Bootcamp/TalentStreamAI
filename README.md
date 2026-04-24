@@ -234,7 +234,7 @@ TalentStreamAI/
 
 `.github/workflows/ci.yml` now runs:
 
-- frontend lint + static build,
+- frontend lint + static build (requires Actions variable `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, same as [.env.example](.env.example)),
 - backend Lambda packaging check,
 - Terraform fmt/init(validate with local backend disabled).
 
@@ -248,8 +248,9 @@ For OIDC trust policy shaping, Terraform renders `.github/aws/github-oidc-trust-
 
 ### Required GitHub variables
 
-At minimum, configure these repository or environment variables before running deploy workflow:
+At minimum, configure these repository or environment variables before running the deploy workflow or CI frontend build:
 
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` — Clerk **publishable** key (`pk_test_...` / `pk_live_...` from Clerk Dashboard → API Keys). Baked into the static Next.js export at build time; safe to store as an Actions **variable** (not a secret).
 - `AWS_ROLE_ARN`
 - `AWS_REGION`
 - `AWS_ACCOUNT_ID`
