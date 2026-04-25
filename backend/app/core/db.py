@@ -1,5 +1,14 @@
 from __future__ import annotations
 
+"""
+Persistent store is **SQLite** (`app.core.config:sqlite_path` / `SQLITE_PATH`).
+
+On **AWS Lambda**, the default path is under `/tmp` (see `lambda/lambda_handler.py`). That
+file is per execution environment, not a shared multi-AZ database: concurrent invocations
+can use different instances. For production scale, plan **EFS** (shared file) or a **managed
+database** (e.g. RDS) — this module is still raw `sqlite3`, so migrating means a new adapter.
+"""
+
 import json
 import os
 import sqlite3

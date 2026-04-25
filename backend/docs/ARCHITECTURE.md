@@ -20,6 +20,8 @@ The API is **purpose-built** for the product: authenticated users manage a **bas
 
 Migrations are **incremental** `CREATE TABLE IF NOT EXISTS` in `init_db()`. New tables appear on the next process start; no separate migration runner is required for the capstone.
 
+**AWS (Lambda)**: The API runs with SQLite on the Lambda **writable** path (typically `/tmp`). That is not a single shared server database: different invocations may see different files, and the file is not a managed AWS database service. For durable, shared data at scale, move to **EFS** (shared volume for one SQLite file) or **RDS/Postgres** (requires replacing `sqlite3` access in this layer).
+
 ## API surface (frontend contract)
 
 | Method | Path | Purpose |
