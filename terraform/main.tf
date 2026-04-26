@@ -11,6 +11,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.75"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.5"
+    }
   }
 }
 
@@ -112,6 +116,13 @@ resource "aws_iam_role_policy_attachment" "api_lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_role_policy_attachment" "api_lambda_vpc" {
+  count = var.enable_aurora ? 1 : 0
+
+  role       = aws_iam_role.api_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
 resource "aws_secretsmanager_secret" "app" {
   name = "${local.name}/app"
 }
@@ -133,7 +144,10 @@ resource "aws_iam_role_policy" "api_lambda_app" {
         Action = [
           "secretsmanager:GetSecretValue",
         ]
-        Resource = aws_secretsmanager_secret.app.arn
+        Resource = compact(concat(
+          [aws_secretsmanager_secret.app.arn],
+          var.enable_aurora ? [aws_secretsmanager_secret.aurora[0].arn] : []
+        ))
       },
       {
         Effect = "Allow"
@@ -162,58 +176,82 @@ resource "aws_lambda_function" "api" {
   source_code_hash = filebase64sha256("${path.module}/build/api_lambda.zip")
 
   architectures = ["x86_64"]
-  timeout       = 30
-  memory_size   = 512
+  timeout       = var.enable_aurora ? 60 : 30
+  memory_size   = var.enable_aurora ? 1024 : 512
 
-  environment {
-    variables = {
-      # --- AWS / runtime ---
-      # (Do not set AWS_REGION here: Lambda reserves it; the runtime still exposes it in os.environ.)
-      DEPLOYMENT_ENVIRONMENT  = var.environment
-      TALENTSTREAM_SECRETS_ID = aws_secretsmanager_secret.app.arn
-      TALENTSTREAM_AWS_LAMBDA = "1"
-      TALENTSTREAM_SQLITE     = "1" # use the in-lambda /tmp default from Settings in lambda_handler
-      SQLITE_PATH             = "/tmp/talentstreamai.sqlite3" # only writable path in Lambda; see db.py
-
-      # --- CORS (browser) ---
-      CORS_ORIGINS = local.cors_joined
-
-      # --- Auth (Clerk) ---
-      AUTH_MODE      = "clerk_jwks"
-      CLERK_JWKS_URL = var.clerk_jwks_url
-      CLERK_ISSUER   = var.clerk_issuer
-      CLERK_AUDIENCE = var.clerk_audience == null ? "" : var.clerk_audience
-
-      # --- App behavior ---
-      AGENT_MODE = "llm"
-
-      # --- LLM (OpenAI-compatible) ---
-      LLM_BASE_URL        = var.llm_base_url
-      LLM_MODEL           = var.llm_model
-      LLM_TIMEOUT_SECONDS = tostring(var.llm_timeout_seconds)
-      LLM_MAX_TOKENS      = tostring(var.llm_max_tokens)
-      LLM_TEMPERATURE     = tostring(var.llm_temperature)
-      OPENROUTER_REFERER  = var.openrouter_referer == null ? "" : var.openrouter_referer
-      OPENROUTER_TITLE    = var.openrouter_title == null ? "" : var.openrouter_title
-
-      # --- Uploads ---
-      UPLOAD_STORAGE = "s3"
-      S3_BUCKET      = aws_s3_bucket.uploads.id
-      S3_PREFIX      = var.uploads_s3_prefix
-      S3_SSE         = "AES256"
-
-      # --- Observability ---
-      LOG_LEVEL                   = var.log_level
-      LOG_JSON                    = var.log_json
-      ENABLE_PROMETHEUS           = var.enable_prometheus
-      OTEL_EXPORTER_OTLP_ENDPOINT = var.otel_exporter_otlp_endpoint == null ? "" : var.otel_exporter_otlp_endpoint
-      SERVICE_NAME                = var.service_name
-
-      LANGFUSE_TRACING_ENABLED = tostring(var.langfuse_tracing_enabled)
-      # Keys live in Secrets Manager; base URL is safe to set directly.
-      LANGFUSE_BASE_URL = coalesce(var.langfuse_base_url, "https://cloud.langfuse.com")
+  dynamic "vpc_config" {
+    for_each = var.enable_aurora ? [1] : []
+    content {
+      subnet_ids         = data.aws_subnets.aurora[0].ids
+      security_group_ids = [aws_security_group.api_lambda[0].id]
     }
   }
+
+  environment {
+    variables = merge(
+      {
+        DEPLOYMENT_ENVIRONMENT  = var.environment
+        TALENTSTREAM_SECRETS_ID = aws_secretsmanager_secret.app.arn
+        TALENTSTREAM_AWS_LAMBDA = "1"
+
+        CORS_ORIGINS = local.cors_joined
+
+        AUTH_MODE      = "clerk_jwks"
+        CLERK_JWKS_URL = var.clerk_jwks_url
+        CLERK_ISSUER   = var.clerk_issuer
+        CLERK_AUDIENCE = var.clerk_audience == null ? "" : var.clerk_audience
+
+        AGENT_MODE = "llm"
+
+        LLM_BASE_URL        = var.llm_base_url
+        LLM_MODEL           = var.llm_model
+        LLM_TIMEOUT_SECONDS = tostring(var.llm_timeout_seconds)
+        LLM_MAX_TOKENS      = tostring(var.llm_max_tokens)
+        LLM_TEMPERATURE     = tostring(var.llm_temperature)
+        OPENROUTER_REFERER  = var.openrouter_referer == null ? "" : var.openrouter_referer
+        OPENROUTER_TITLE    = var.openrouter_title == null ? "" : var.openrouter_title
+
+        UPLOAD_STORAGE = "s3"
+        S3_BUCKET      = aws_s3_bucket.uploads.id
+        S3_PREFIX      = var.uploads_s3_prefix
+        S3_SSE         = "AES256"
+
+        LOG_LEVEL                   = var.log_level
+        LOG_JSON                    = var.log_json
+        ENABLE_PROMETHEUS           = var.enable_prometheus
+        OTEL_EXPORTER_OTLP_ENDPOINT = var.otel_exporter_otlp_endpoint == null ? "" : var.otel_exporter_otlp_endpoint
+        SERVICE_NAME                = var.service_name
+
+        LANGFUSE_TRACING_ENABLED = tostring(var.langfuse_tracing_enabled)
+        LANGFUSE_BASE_URL        = coalesce(var.langfuse_base_url, "https://cloud.langfuse.com")
+      },
+      var.enable_aurora ? {
+        DB_BACKEND        = "postgres"
+        AURORA_SECRET_ARN = aws_secretsmanager_secret.aurora[0].arn
+        POSTGRES_HOST     = aws_rds_cluster.aurora[0].endpoint
+        POSTGRES_PORT     = "5432"
+        POSTGRES_DB       = var.aurora_database_name
+        POSTGRES_USER     = var.aurora_master_username
+        } : {
+        DB_BACKEND          = "sqlite"
+        TALENTSTREAM_SQLITE = "1"
+        SQLITE_PATH         = "/tmp/talentstreamai.sqlite3"
+      }
+    )
+  }
+
+  # Ensure Aurora is accepting connections and VPC access is ready before the function is updated;
+  # tags create an implicit reference when enable_aurora is true (depends_on must be a static list).
+  tags = merge(
+    {
+      Project     = var.project_name
+      Environment = var.environment
+    },
+    var.enable_aurora ? {
+      "talentstream.io/aurora-ready" = aws_rds_cluster_instance.aurora[0].id
+      "talentstream.io/vpc-access"   = aws_iam_role_policy_attachment.api_lambda_vpc[0].id
+    } : {}
+  )
 
   depends_on = [aws_iam_role_policy_attachment.api_lambda_basic, aws_iam_role_policy.api_lambda_app]
 }

@@ -162,6 +162,82 @@ variable "app_secrets_json" {
 }
 
 # -----------------------------------------------------------------------------
+# Aurora PostgreSQL (Serverless v2) — app database for the API Lambda
+# -----------------------------------------------------------------------------
+
+variable "enable_aurora" {
+  type        = bool
+  description = "If true, create Aurora Serverless v2 PostgreSQL, run Lambda in the default VPC, and set DB_BACKEND=postgres. If false, the API uses SQLite on /tmp in Lambda (simpler, not suitable for production scale)."
+  default     = true
+}
+
+variable "aurora_min_capacity" {
+  type        = number
+  description = "Aurora Serverless v2 minimum capacity (ACUs). 0.5 is a common cost floor (~tens of USD/mo with steady use)."
+  default     = 0.5
+}
+
+variable "aurora_max_capacity" {
+  type        = number
+  description = "Aurora Serverless v2 maximum capacity (ACUs). Keep low (e.g. 1) for non-prod to cap cost."
+  default     = 1.0
+}
+
+variable "aurora_engine_version" {
+  type        = string
+  description = "Aurora PostgreSQL engine version."
+  default     = "15.12"
+}
+
+variable "aurora_database_name" {
+  type        = string
+  description = "Initial database name in the cluster."
+  default     = "talentstreamai"
+}
+
+variable "aurora_master_username" {
+  type        = string
+  description = "Master database username (alphanumeric, start with a letter)."
+  default     = "tsadmin"
+}
+
+variable "aurora_enable_http_endpoint" {
+  type        = bool
+  description = "Enable RDS Data API (optional; the app uses psycopg + TLS to the instance endpoint)."
+  default     = true
+}
+
+variable "aurora_secret_recovery_window_days" {
+  type        = number
+  description = "Secrets Manager recovery window for the master credential secret. Use 0 for dev-only immediate deletion."
+  default     = 7
+}
+
+variable "aurora_skip_final_snapshot" {
+  type        = bool
+  description = "If true, do not take a final snapshot on cluster destroy. Safer to set false for real prod."
+  default     = true
+}
+
+variable "aurora_deletion_protection" {
+  type        = bool
+  description = "Enable deletion protection on the cluster (recommended for production)."
+  default     = false
+}
+
+variable "aurora_backup_retention_period" {
+  type        = number
+  description = "Backup retention in days."
+  default     = 7
+}
+
+variable "aurora_performance_insights" {
+  type        = bool
+  description = "Enable Performance Insights (extra cost; useful for production tuning)."
+  default     = false
+}
+
+# -----------------------------------------------------------------------------
 # Frontend (static export) — browser-only environment
 #
 # These values are *not* attached to an AWS resource by this Terraform. They are

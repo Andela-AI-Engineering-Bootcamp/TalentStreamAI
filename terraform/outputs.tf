@@ -63,3 +63,30 @@ output "terraform_state_lock_table_name" {
   description = "DynamoDB table for state locking (if manage_terraform_state_backend = true)."
   value       = var.manage_terraform_state_backend ? aws_dynamodb_table.terraform_state_lock[0].name : null
 }
+
+output "aurora_enabled" {
+  description = "Whether Aurora PostgreSQL is provisioned for the API."
+  value       = var.enable_aurora
+}
+
+output "aurora_cluster_endpoint" {
+  description = "Aurora writer endpoint (if enable_aurora)."
+  value       = var.enable_aurora ? aws_rds_cluster.aurora[0].endpoint : null
+}
+
+output "aurora_cluster_arn" {
+  description = "Aurora cluster ARN (if enable_aurora)."
+  value       = var.enable_aurora ? aws_rds_cluster.aurora[0].arn : null
+  sensitive   = true
+}
+
+output "aurora_secret_arn" {
+  description = "Secrets Manager ARN for the Aurora master user/password (if enable_aurora). Lambda has read access."
+  value       = var.enable_aurora ? aws_secretsmanager_secret.aurora[0].arn : null
+  sensitive   = true
+}
+
+output "aurora_database_name" {
+  description = "Logical database name inside the cluster."
+  value       = var.enable_aurora ? var.aurora_database_name : null
+}

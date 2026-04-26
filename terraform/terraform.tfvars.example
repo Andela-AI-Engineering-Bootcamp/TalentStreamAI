@@ -8,6 +8,13 @@ manage_terraform_state_backend = true
 # If the account already has `token.actions.githubusercontent.com` (common), set this false to avoid EntityAlreadyExists.
 # create_github_oidc_provider = false
 
+# --- Aurora (PostgreSQL, Serverless v2) ---
+# Set `false` only to skip database cost in a sandbox (API falls back to SQLite in Lambda, not for production).
+# enable_aurora = true
+# Min/max ACU (cost control; same idea as `terraform/5_database/terraform.tfvars`).
+# aurora_min_capacity = 0.5
+# aurora_max_capacity = 1.0
+
 # --- Auth (Clerk) ---
 # Find these in the Clerk dashboard (JWT template / API settings).
 clerk_jwks_url = "https://<your-clerk-subdomain>.clerk.accounts.dev/.well-known/jwks.json"
