@@ -29,3 +29,6 @@ langfuse>=4.5.0
 
 # Tenacity and friends used in services
 tenacity==9.1.4
+
+# Aurora / PostgreSQL (psycopg3; used when DB_BACKEND=postgres)
+psycopg[binary]>=3.2.0

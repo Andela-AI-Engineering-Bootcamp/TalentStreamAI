@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -42,6 +42,16 @@ class Settings(BaseSettings):
     upload_dir: str = ".data/uploads"
     sqlite_busy_timeout_ms: int = 5000
     sqlite_enable_wal: bool = True
+
+    # "sqlite" (default) or "postgres" (Aurora / local PostgreSQL; use DATABASE_URL)
+    db_backend: str = Field(
+        default="sqlite",
+        validation_alias=AliasChoices("DB_BACKEND", "db_backend"),
+    )
+    database_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DATABASE_URL", "database_url"),
+    )
 
     upload_storage: str = "none"
     s3_bucket: str | None = None
@@ -129,6 +139,22 @@ class Settings(BaseSettings):
         if normalized.lower() == "aws:kms":
             return "aws:kms"
         return normalized
+
+    @field_validator("db_backend", mode="before")
+    @classmethod
+    def _db_backend_mode(cls, value: object) -> str:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return "sqlite"
+        s = str(value).strip().lower()
+        if s not in ("sqlite", "postgres"):
+            raise ValueError("DB_BACKEND must be 'sqlite' or 'postgres'")
+        return s
+
+    @model_validator(mode="after")
+    def _postgres_needs_url(self) -> "Settings":
+        if self.db_backend == "postgres" and not (self.database_url or "").strip():
+            raise ValueError("DATABASE_URL is required when DB_BACKEND=postgres")
+        return self
 
 
 settings = Settings()

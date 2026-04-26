@@ -12,7 +12,7 @@ The API is **purpose-built** for the product: authenticated users manage a **bas
 - **Langfuse** (optional): Set `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, and `LANGFUSE_BASE_URL` (or `LANGFUSE_HOST` / `langfuse_host`) in the repo root `.env` to send **LLM generation spans** to [Langfuse](https://langfuse.com): the **httpx** `LlmClient` wraps each `chat.completions` call, and the **LangChain** `ChatOpenAI` path in `workflow.py` uses the **Langfuse LangChain callback** when the client is configured. Use `LANGFUSE_TRACING_ENABLED=false` to turn tracing off without removing keys. Tracing does **not** use `OPENAI_API_KEY`—only the Langfuse keys. For **chat completions**, `Settings.chat_completions_api_key` uses `OPENROUTER_API_KEY` when set, otherwise `OPENAI_API_KEY` (OpenAI-only setups).
 - **Traces and alerts**: The codebase is also **ready** for you to plug OpenTelemetry (e.g. export to your collector when `OTEL_EXPORTER_OTLP_ENDPOINT` is set) and to wire **alerting** on `5xx` rate, p95 latency, LLM error rate, and `tailor_runs_total{outcome="error"}`. The exact OTel exporter packages are left to your platform to avoid unused heavy dependencies in minimal installs.
 
-## Data model (SQLite, local / single-node)
+## Data model (SQLite locally; Aurora PostgreSQL in AWS)
 
 - **`documents`**: Resume and job-description blobs (existing). Resume `meta` may include `title`, `is_base`, `application_id`.
 - **`user_profiles`**: One row per Clerk `user_id` (or `anonymous` in dev), with `base_resume_id` and display fields.
@@ -20,7 +20,7 @@ The API is **purpose-built** for the product: authenticated users manage a **bas
 
 Migrations are **incremental** `CREATE TABLE IF NOT EXISTS` in `init_db()`. New tables appear on the next process start; no separate migration runner is required for the capstone.
 
-**AWS (Lambda)**: The API runs with SQLite on the Lambda **writable** path (typically `/tmp`). That is not a single shared server database: different invocations may see different files, and the file is not a managed AWS database service. For durable, shared data at scale, move to **EFS** (shared volume for one SQLite file) or **RDS/Postgres** (requires replacing `sqlite3` access in this layer).
+**AWS (Lambda + Terraform)**: For production, Terraform can provision **Aurora Serverless v2 (PostgreSQL)** and set `DB_BACKEND=postgres`; the app uses `psycopg` and the same logical schema. When `enable_aurora` is `false` in Terraform, the API can still use **SQLite** under `/tmp` in Lambda (suitable only for throwaway or cost-free experiments). The standalone `terraform/5_database` example in this repo is a cost-pattern reference, not a separate app stack.
 
 ## API surface (frontend contract)
 
