@@ -1,12 +1,10 @@
-name: Terraform (plan/apply)
+name: Terraform (plan)
 
-# Plan: on PR open/sync. Deploy (apply + frontend): only when a PR is merged into `main`
-# and the paths match. Does not run on direct pushes to `main` or on manual dispatch.
-# Note: `pull_request` from forks cannot use repository secrets; same-repo PRs only for deploy
-# unless you change the model (e.g. `push` to `main` after merge).
+# Plan on PR when matching paths change. Apply and frontend deploy run in `.github/workflows/deploy-aws.yml`
+# (push to `main` or manual dispatch). Fork PRs cannot use repository secrets for plan with AWS.
 on:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
     paths:
       - "terraform/**"
       - ".github/workflows/terraform.yml"
@@ -17,11 +15,9 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
-  # One deploy at a time to main; per-PR plans do not block each other.
-  group: ${{ github.event.action == 'closed' && 'terraform-apply-main' || format('terraform-plan-pr-{0}', github.event.number) }}
+  group: format('terraform-plan-pr-{0}', github.event.number)
   cancel-in-progress: false
 
 env:
@@ -29,7 +25,6 @@ env:
   TF_INPUT: "false"
   TF_DIR: terraform
   AWS_REGION: us-east-1
-  TERRAFORM_ENVIRONMENT: dev
 
 jobs:
   plan:
@@ -57,12 +52,7 @@ jobs:
         with:
           terraform_version: "1.7.5"
 
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-
+      # No AWS in this job (fmt/validate). Deploy uses `deploy-aws.yml` with OIDC and remote state.
       - name: Terraform fmt
         run: terraform fmt -check -recursive
 
@@ -71,107 +61,3 @@ jobs:
 
       - name: Validate
         run: terraform validate
-
-      - name: Plan (no backend)
-        env:
-          # Plan-time placeholders (real values come from your terraform.tfvars / environment secrets in apply)
-          TF_VAR_clerk_jwks_url: "https://example.com/.well-known/jwks.json"
-          TF_VAR_clerk_issuer: "https://example.com"
-          TF_VAR_app_secrets_json: "{}"
-        run: |
-          terraform plan -no-color \
-            -var="environment=dev" \
-            -var="github_repository=${{ github.repository }}" \
-            -var="enable_github_oidc=false" \
-            -var="enable_aurora=false"
-
-  apply:
-    if: >
-      github.event_name == 'pull_request' &&
-      github.event.action == 'closed' &&
-      github.event.pull_request.merged == true &&
-      github.event.pull_request.base.ref == 'main'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.TF_DIR }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - uses: astral-sh/setup-uv@v5
-        with:
-          version: "latest"
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.7.5"
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-
-      - name: Build Lambda package
-        run: bash ../scripts/build-lambda-zip.sh
-
-      - name: Enable S3 backend (not in git; local dev uses local state only)
-        run: cp backend_s3.tf.example backend_s3.tf
-
-      - name: Write backend.hcl
-        run: |
-          cat > backend.hcl <<EOF
-          bucket         = "${{ secrets.TF_STATE_BUCKET }}"
-          key            = "talentstreamai/${{ env.TERRAFORM_ENVIRONMENT }}/terraform.tfstate"
-          region         = "${{ secrets.TF_STATE_REGION }}"
-          dynamodb_table = "${{ secrets.TF_LOCK_TABLE }}"
-          encrypt        = true
-          EOF
-
-      - name: Init (remote state)
-        run: terraform init -backend-config=backend.hcl
-
-      - name: Apply
-        env:
-          TF_VAR_clerk_jwks_url: ${{ secrets.CLERK_JWKS_URL }}
-          TF_VAR_clerk_issuer: ${{ secrets.CLERK_ISSUER }}
-          TF_VAR_app_secrets_json: ${{ secrets.APP_SECRETS_JSON }}
-        run: |
-          terraform apply -auto-approve \
-            -var="environment=${{ env.TERRAFORM_ENVIRONMENT }}" \
-            -var="github_repository=${{ github.repository }}" \
-            -var="enable_github_oidc=true"
-
-      - name: Read Terraform outputs
-        id: tf
-        run: |
-          echo "bucket=$(terraform output -raw frontend_bucket_name)" >> "$GITHUB_OUTPUT"
-          echo "distribution_id=$(terraform output -raw cloudfront_distribution_id)" >> "$GITHUB_OUTPUT"
-
-      - name: Build frontend (static export)
-        env:
-          # Browser-only Clerk key (public) — not a network secret, but we keep it in GitHub secrets by convention.
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-          # Static export: same-origin `/api/*` via CloudFront, disable dev rewrites
-          NEXT_DISABLE_API_REWRITE: "1"
-        run: |
-          cd ../frontend
-          npm ci
-          npm run build
-
-      - name: Upload frontend to S3
-        run: |
-          aws s3 sync ../frontend/out "s3://${{ steps.tf.outputs.bucket }}/" --delete
-
-      - name: Invalidate CloudFront
-        run: |
-          aws cloudfront create-invalidation \
-            --distribution-id "${{ steps.tf.outputs.distribution_id }}" \
-            --paths "/*"
-

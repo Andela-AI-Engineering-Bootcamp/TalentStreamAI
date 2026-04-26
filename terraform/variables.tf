@@ -28,13 +28,8 @@ variable "enable_github_oidc" {
 
 variable "github_repository" {
   type        = string
-  description = "GitHub repository in OWNER/REPO format used to scope the OIDC role (e.g. my-org/TalentStreamAI). Must match the repo running Actions or sts:AssumeRoleWithWebIdentity fails."
+  description = "GitHub repository in OWNER/REPO format for the OIDC role trust (e.g. my-org/TalentStreamAI). When enable_github_oidc is true, do not leave the default; CI should pass -var (see deploy workflow). See also checks.tf."
   default     = "CHANGE_ME/CHANGE_ME"
-
-  validation {
-    condition     = !var.enable_github_oidc || var.github_repository != "CHANGE_ME/CHANGE_ME"
-    error_message = "When enable_github_oidc is true, set github_repository to your GitHub owner/repo (from the repository URL) — not the placeholder."
-  }
 }
 
 variable "create_github_oidc_provider" {
