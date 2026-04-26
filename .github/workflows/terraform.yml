@@ -1,35 +1,27 @@
 name: Terraform (plan/apply)
 
+# Plan: on PR open/sync. Deploy (apply + frontend): only when a PR is merged into `main`
+# and the paths match. Does not run on direct pushes to `main` or on manual dispatch.
+# Note: `pull_request` from forks cannot use repository secrets; same-repo PRs only for deploy
+# unless you change the model (e.g. `push` to `main` after merge).
 on:
   pull_request:
+    types: [opened, synchronize, reopened, closed]
     paths:
       - "terraform/**"
       - ".github/workflows/terraform.yml"
       - "scripts/**"
       - "backend/**"
       - "backend/lambda/**"
-  push:
-    branches: [main]
-    paths:
-      - "terraform/**"
-      - ".github/workflows/terraform.yml"
-      - "scripts/**"
-      - "backend/**"
-      - "backend/lambda/**"
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: Environment to deploy
-        type: choice
-        options: [dev, staging, prod]
-        default: dev
+      - "frontend/**"
 
 permissions:
   contents: read
   id-token: write
 
 concurrency:
-  group: terraform-${{ github.ref }}-${{ github.event.inputs.environment || 'auto' }}
+  # One deploy at a time to main; per-PR plans do not block each other.
+  group: ${{ github.event.action == 'closed' && 'terraform-apply-main' || format('terraform-plan-pr-{0}', github.event.number) }}
   cancel-in-progress: false
 
 env:
@@ -37,10 +29,11 @@ env:
   TF_INPUT: "false"
   TF_DIR: terraform
   AWS_REGION: us-east-1
+  TERRAFORM_ENVIRONMENT: dev
 
 jobs:
   plan:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -63,6 +56,12 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.7.5"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
 
       - name: Terraform fmt
         run: terraform fmt -check -recursive
@@ -87,13 +86,19 @@ jobs:
             -var="enable_aurora=false"
 
   apply:
-    if: github.event_name != 'pull_request'
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ${{ env.TF_DIR }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - uses: actions/setup-python@v5
         with:
@@ -123,7 +128,7 @@ jobs:
         run: |
           cat > backend.hcl <<EOF
           bucket         = "${{ secrets.TF_STATE_BUCKET }}"
-          key            = "talentstreamai/${{ github.event.inputs.environment || 'dev' }}/terraform.tfstate"
+          key            = "talentstreamai/${{ env.TERRAFORM_ENVIRONMENT }}/terraform.tfstate"
           region         = "${{ secrets.TF_STATE_REGION }}"
           dynamodb_table = "${{ secrets.TF_LOCK_TABLE }}"
           encrypt        = true
@@ -139,7 +144,7 @@ jobs:
           TF_VAR_app_secrets_json: ${{ secrets.APP_SECRETS_JSON }}
         run: |
           terraform apply -auto-approve \
-            -var="environment=${{ github.event.inputs.environment || 'dev' }}" \
+            -var="environment=${{ env.TERRAFORM_ENVIRONMENT }}" \
             -var="github_repository=${{ github.repository }}" \
             -var="enable_github_oidc=true"
 
